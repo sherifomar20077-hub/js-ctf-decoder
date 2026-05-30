@@ -2,13 +2,13 @@
 
 /**
  * ============================================================
- *  CTF-JS-Decoder — JavaScript Deobfuscation CLI Tool
- *  Author  : Senior JavaScript Security Engineer
- *  License : MIT
- *  Purpose : Decode and deobfuscate obfuscated JavaScript
- *            commonly found in CTF challenges. Uses Node.js
- *            native `vm` module for sandboxed execution —
- *            never a bare global eval().
+ * CTF-JS-Decoder — JavaScript Deobfuscation CLI Tool
+ * Author  : Senior JavaScript Security Engineer
+ * License : MIT
+ * Purpose : Decode and deobfuscate obfuscated JavaScript
+ * commonly found in CTF challenges. Uses Node.js
+ * native `vm` module for sandboxed execution —
+ * never a bare global eval().
  * ============================================================
  */
 
@@ -58,17 +58,17 @@ function printBanner() {
   const line = paint(C.bCyan, '═'.repeat(62));
   console.log('\n' + line);
   console.log(paint(C.bYellow + C.bold, `
-   ██████╗████████╗███████╗      ██╗███████╗
-  ██╔════╝╚══██╔══╝██╔════╝      ██║██╔════╝
-  ██║        ██║   █████╗        ██║███████╗
-  ██║        ██║   ██╔══╝   ██   ██║╚════██║
-  ╚██████╗   ██║   ██║      ╚█████╔╝███████║
-   ╚═════╝   ╚═╝   ╚═╝       ╚════╝ ╚══════╝
+    ██████╗████████╗███████╗      ██╗███████╗
+   ██╔════╝╚══██╔══╝██╔════╝      ██║██╔════╝
+   ██║        ██║   █████╗        ██║███████║
+   ██║        ██║   ██╔══╝   ██   ██║╚════██║
+   ╚██████╗   ██║   ██║      ╚█████╔╝███████║
+    ╚═════╝   ╚═╝   ╚═╝       ╚════╝ ╚══════╝
   `));
   console.log(paint(C.bMagenta + C.bold,
-    '         JS  D E C O D E R  —  CTF Edition'));
+    '          JS  D E C O D E R  —  CTF Edition'));
   console.log(paint(C.dim + C.cyan,
-    '     Sandboxed · Safe · Smart · Beautiful'));
+    '      Sandboxed · Safe · Smart · Beautiful'));
   console.log('\n' + line + '\n');
 }
 
@@ -134,7 +134,7 @@ function printHelp() {
   ${paint(C.bold + C.bCyan, 'OPTIONS')}
     ${paint(C.bYellow, '--input  <file>')}      Path to the obfuscated JS file     (required)
     ${paint(C.bYellow, '--output <file>')}      Write decoded result to this file  (optional, default: stdout)
-    ${paint(C.bYellow, '--timeout <ms>')}       vm execution timeout in ms         (default: 5000)
+    ${paint(C.bYellow, '--timeout <ms>')}        vm execution timeout in ms         (default: 5000)
     ${paint(C.bYellow, '--verbose')}            Print extra diagnostic information
     ${paint(C.bYellow, '--help')}               Show this help message
 
@@ -223,8 +223,8 @@ function detectType(code) {
  * Execute a snippet of code inside a Node.js vm sandbox.
  *
  * The sandbox object exposes only the bare minimum:
- *   - console.log → captured into `output` array
- *   - A no-op `process` shim to prevent accidental access
+ * - console.log → captured into `output` array
+ * - A no-op `process` shim to prevent accidental access
  *
  * The code is wrapped so that the LAST expression value is captured,
  * and any console.log calls are intercepted.
@@ -266,18 +266,23 @@ function runInSandbox(code, timeoutMs = 5000) {
   vm.createContext(sandbox);
 
   // Wrap user code: capture the final expression value via assignment
-  const wrapped = `__result__ = (function(){ ${code} })();`;
+  const wrapped = `__result__ = (function(){ return (${code}); })();`;
 
   try {
     vm.runInContext(wrapped, sandbox, { timeout: timeoutMs });
   } catch (_) {
-    // Some payloads (e.g. JSFuck) are pure expressions, not statements.
-    // Try running them as a bare expression instead.
-    const exprWrapped = `__result__ = ${code};`;
-    vm.runInContext(exprWrapped, sandbox, { timeout: timeoutMs });
+    // Fallback if formatting as statement blocks fails
+    try {
+      const exprWrapped = `__result__ = ${code};`;
+      vm.runInContext(exprWrapped, sandbox, { timeout: timeoutMs });
+    } catch (__) {
+      // Final resilient fallback for complex anonymous blocks
+      const rawWrapped = `__result__ = eval(${JSON.stringify(code)});`;
+      vm.runInContext(rawWrapped, sandbox, { timeout: timeoutMs });
+    }
   }
 
-  const result = typeof sandbox.__result__ !== 'undefined'
+  const result = typeof sandbox.__result__ !== 'undefined' && sandbox.__result__ !== null
     ? String(sandbox.__result__)
     : '';
 
@@ -356,15 +361,15 @@ function decodeUnicodeEscape(code) {
  * Attempts plain sandboxed execution and captures any output.
  *
  * Priority order for the decoded result:
- *   1. The return value of the executed code  (covers IIFEs that return strings)
- *   2. Anything written to console.log()
- *   3. A fallback message if nothing was captured
+ * 1. The return value of the executed code  (covers IIFEs that return strings)
+ * 2. Anything written to console.log()
+ * 3. A fallback message if nothing was captured
  */
 function decodeGeneric(code, timeoutMs) {
   const { result, logs } = runInSandbox(code, timeoutMs);
 
   // Prefer a non-empty return value — this is what IIFEs like
-  //   (function(){ var arr=[...]; return arr[0]+arr[1]+... }())
+  //      (function(){ var arr=[...]; return arr[0]+arr[1]+... }())
   // produce. Only fall back to console output when result is empty.
   const decoded = result
     || logs.join('\n')
@@ -469,12 +474,12 @@ function multiPassDecode(code, { timeoutMs = 5000, maxPasses = 6, verbose = fals
       break;
     }
 
-    // If the VM executed an 'unknown' block and produced a short, clean
-    // result (no brackets/parens/quotes typical of obfuscated JS), we
-    // treat it as fully decoded and stop.
-    const looksClean = !/[(){}\[\]\\]/.test(decoded) || decoded.length < 200;
-    if (tag === 'unknown' && looksClean) {
-      break;
+    // Smart-check: If we successfully extracted a clean CTF Flag or a clear raw value,
+    // don't let it loop or drop into fallback messages.
+    if (decoded.includes('CTF{') || decoded.includes('](') || decoded.length < 150) {
+      if (decoded !== '[No output captured — inspect the source manually]') {
+        break;
+      }
     }
   }
 
