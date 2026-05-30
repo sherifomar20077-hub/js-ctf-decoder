@@ -58,12 +58,12 @@ function printBanner() {
   const line = paint(C.bCyan, '═'.repeat(62));
   console.log('\n' + line);
   console.log(paint(C.bYellow + C.bold, `
-    ██████╗████████╗███████╗      ██╗███████╗
-   ██╔════╝╚══██╔══╝██╔════╝      ██║██╔════╝
-   ██║        ██║   █████╗        ██║███████║
-   ██║        ██║   ██╔══╝   ██   ██║╚════██║
-   ╚██████╗   ██║   ██║      ╚█████╔╝███████║
-    ╚═════╝   ╚═╝   ╚═╝       ╚════╝ ╚══════╝
+     ██████╗████████╗███████╗      ██╗███████╗
+    ██╔════╝╚══██╔══╝██╔════╝      ██║██╔════╝
+    ██║        ██║   █████╗        ██║███████║
+    ██║        ██║   ██╔══╝   ██   ██║╚════██║
+    ╚██████╗   ██║   ██║      ╚█████╔╝███████║
+     ╚═════╝   ╚═╝   ╚═╝       ╚════╝ ╚══════╝
   `));
   console.log(paint(C.bMagenta + C.bold,
     '          JS  D E C O D E R  —  CTF Edition'));
@@ -443,7 +443,12 @@ function multiPassDecode(code, { timeoutMs = 5000, maxPasses = 6, verbose = fals
 
     let decoded, method;
     try {
-      ({ decoded, method } = dispatchDecode(current, tag, timeoutMs));
+      // 🛡️ التعديل النهائي والذكي: منع التدمير بالـ Regex إذا كانت الرموز المشفرة مدمجة داخل دوال رياضية أو مصفوفات معقدة
+      if ((tag === 'hex_escape' || tag === 'unicode_escape') && (current.includes('function') || current.includes('=>'))) {
+        ({ decoded, method } = decodeGeneric(current, timeoutMs));
+      } else {
+        ({ decoded, method } = dispatchDecode(current, tag, timeoutMs));
+      }
     } catch (err) {
       log.warn(`Pass ${pass} failed: ${err.message}`);
       break;
